@@ -1,0 +1,13 @@
+{
+  "name": "@dduix/native",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "type": "module",
+  "keywords": [],
+  "author": "yellilo",
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "@dduix/core": "^1.0.0"
+  }
+}
