@@ -1,4 +1,5 @@
 import { DDUIXValueType } from "../enums";
+import { DDUIXTypeError } from "../errors";
 import { DDUIXPunctuation } from "../punctuation";
 import type { DDUIXSource } from "../source";
 import type { DDUIXFloat, DDUIXInteger } from "../value";
@@ -15,23 +16,51 @@ export class DDUIXRangeConstraint extends DDUIXConstraint {
     super(type, source);
   }
 
-  satisfiedBy(value: DDUIXFloat | DDUIXInteger) {
-    if (!super.satisfiedBy(value)) return false;
-    if (this.min !== null && value.value < this.min.value) return false;
-    if (this.max !== null && value.value > this.max.value) return false;
+  satisfiedBy(value: DDUIXFloat | DDUIXInteger, throwIfFalse = false) {
+    if (!super.satisfiedBy(value, throwIfFalse)) return false;
+
+    if (this.min !== null && value.value < this.min.value) {
+      if (throwIfFalse) {
+        throw new DDUIXTypeError(
+          `Value must be greater than or equal to minimum value of ${this.min}`,
+          value.source,
+        );
+      }
+      return false;
+    }
+
+    if (this.max !== null && value.value > this.max.value) {
+      if (throwIfFalse) {
+        throw new DDUIXTypeError(
+          `Value must be less than or equal to maximum value of ${this.max}`,
+          value.source,
+        );
+      }
+      return false;
+    }
+
     return true;
   }
 
-  subsetOf(constraint: DDUIXConstraint) {
-    if (!super.subsetOf(constraint)) return false;
+  subsetOf(constraint: DDUIXConstraint, throwIfFalse = false) {
+    if (!super.subsetOf(constraint, throwIfFalse)) return false;
 
     if (constraint instanceof DDUIXRangeConstraint) {
-      return subsetOfRange(
+      const isSubset = subsetOfRange(
         constraint.min?.value,
         constraint.max?.value,
         this.min?.value,
         this.max?.value,
       );
+
+      if (!isSubset && throwIfFalse) {
+        throw new DDUIXTypeError(
+          `There is insufficient overlap between range [${this.min}, ${this.max}] and the accepted range [${constraint.min}, ${constraint.max}]`,
+          this.source,
+        );
+      }
+
+      return isSubset;
     }
 
     return true;
