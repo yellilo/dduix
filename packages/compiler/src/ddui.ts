@@ -22,8 +22,21 @@ export interface DDUIElement {
   children?: DDUIElement[];
 }
 
+export interface DDUIStyle {
+  "format_version": string;
+  "minecraft:ui-style": {
+    "description": {
+      "identifier": string;
+    };
+    "components": {
+      [component: string]: Record<string, unknown>;
+    };
+  };
+}
+
 export class DDUIBuilder {
-  static readonly FormatVersion = "1.21.130";
+  static readonly RootFormatVersion = "1.21.130";
+  static readonly StyleFormatVersion = "beta";
 
   static createRoot(
     identifier: DDUIXNamespacedIdentifier,
@@ -31,7 +44,7 @@ export class DDUIBuilder {
     markup: DDUIXLayoutElement[],
   ): DDUIRoot {
     return {
-      "format_version": this.FormatVersion,
+      "format_version": this.RootFormatVersion,
       "minecraft:ui-root": {
         "description": {
           "identifier": identifier.toString(),
@@ -40,14 +53,14 @@ export class DDUIBuilder {
           "rootPoint": rootPoint.toString(),
         },
         "layout": {
-          "markup": markup.map((element) => this.createElement(element)),
+          "markup": markup.map(element => this.createElement(element)),
         },
       },
     };
   }
 
   static createElements(layoutElements: DDUIXLayoutElement[]) {
-    return layoutElements.map((e) => this.createElement(e));
+    return layoutElements.map(e => this.createElement(e));
   }
 
   static createElement(layoutElement: DDUIXLayoutElement): DDUIElement {
@@ -68,5 +81,22 @@ export class DDUIBuilder {
     }
 
     return element;
+  }
+
+  static createStyle(
+    identifier: DDUIXNamespacedIdentifier,
+    declarations: {
+      [component: string]: Record<string, unknown>;
+    },
+  ): DDUIStyle {
+    return {
+      "format_version": this.StyleFormatVersion,
+      "minecraft:ui-style": {
+        "description": {
+          "identifier": identifier.toString(),
+        },
+        "components": declarations,
+      },
+    };
   }
 }

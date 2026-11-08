@@ -9,9 +9,4 @@ export class DDUIXIdentifier {
   toString() {
     return this.name;
   }
-
-  // Allows identifiers to be compared using (non-strict) equality operators
-  valueOf() {
-    return this.toString();
-  }
 }

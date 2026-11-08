@@ -142,7 +142,7 @@ export class DDUIXInternalMarkupSubparser extends DDUIXInternalSubparser {
     );
     this.expect(DDUIXPunctuation.ElementEndTagClose);
 
-    if (nameNode.data.toString() != expectedName.toString()) {
+    if (nameNode.data.toString() !== expectedName.toString()) {
       this.throw(`Expected corresponding end tag for element "${expectedName}"`, start);
     }
 

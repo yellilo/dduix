@@ -5,6 +5,7 @@ import {
   DDUIXValueType,
   DDUIXColorStylePropertyDefinition,
   DDUIXConstraint,
+  DDUIXValue,
 } from "@dduix/core";
 
 const booleanConstraint = new DDUIXConstraint(DDUIXValueType.Boolean, DDUIXSource.Internal);
@@ -21,12 +22,21 @@ export function defineColorProperty(identifier: string, isOptional = true, hasAl
   return definition;
 }
 
+function paddingToJSON({ top, right, bottom, left }: Record<string, DDUIXValue>) {
+  if (top.equals(bottom) && left.equals(right)) {
+    return [top, right];
+  } else {
+    return [top, right, bottom, left];
+  }
+}
+
 export function definePaddingProperty(identifier: string, isOptional = true) {
   const definition = new DDUIXStylePropertyDefinition(
     new DDUIXIdentifier(identifier, DDUIXSource.Internal),
     floatConstraint,
     ["top", "right", "bottom", "left"],
     isOptional,
+    paddingToJSON,
   );
 
   definition.acceptsUniform = true;
@@ -44,6 +54,7 @@ export function defineImagePathProperty(identifier: string, isOptional = true) {
     stringConstraint,
     ["path"],
     isOptional,
+    ({ path }) => path,
   );
 
   return definition;
@@ -55,6 +66,7 @@ export function defineEnabledProperty(identifier: string, isOptional = true) {
     booleanConstraint,
     ["enabled"],
     isOptional,
+    ({ enabled }) => enabled,
   );
 
   return def;

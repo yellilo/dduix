@@ -1,7 +1,7 @@
 import { DDUIXConstraint, DDUIXRangeConstraint } from "../constraints";
+import { DDUIXInteger, DDUIXValue } from "../value";
 import { DDUIXPunctuation } from "../punctuation";
 import { DDUIXIdentifier } from "../identifiers";
-import { DDUIXInteger } from "../value";
 import { DDUIXSource } from "../source";
 
 import { DDUIXDefinition } from "./base";
@@ -18,6 +18,7 @@ export class DDUIXStylePropertyDefinition extends DDUIXDefinition {
     public constraint: DDUIXConstraint,
     public parameters: string[],
     public isOptional = true,
+    public getJSON: (parameters: Record<string, DDUIXValue>) => unknown,
   ) {
     super(identifier, DDUIXSource.Internal);
     this.addOverload(...parameters);
@@ -89,7 +90,9 @@ export class DDUIXColorStylePropertyDefinition extends DDUIXStylePropertyDefinit
       parameters.push("alpha");
     }
 
-    super(identifier, channelConstraint, parameters, isOptional);
+    super(identifier, channelConstraint, parameters, isOptional, ({ red, green, blue, alpha }) =>
+      alpha ? [red, green, blue, alpha] : [red, green, blue],
+    );
 
     if (hasAlpha) this.addOverload(...rgbParameters);
   }

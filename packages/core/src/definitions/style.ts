@@ -1,8 +1,14 @@
-import type { DDUIXNamespacedIdentifier } from "../identifiers";
+import {
+  DDUIXIdentifierSet,
+  type DDUIXIdentifier,
+  type DDUIXIdentifierMap,
+  type DDUIXNamespacedIdentifier,
+} from "../identifiers";
 import type { DDUIXStyleDeclaration } from "../styling";
 import type { DDUIXSource } from "../source";
 
 import { DDUIXDefinition } from "./base";
+import { DDUIXError } from "../errors";
 
 export class DDUIXStyleDefinition extends DDUIXDefinition {
   constructor(
@@ -15,6 +21,14 @@ export class DDUIXStyleDefinition extends DDUIXDefinition {
     super(identifier, source);
   }
 
+  getDeclaration(component: DDUIXNamespacedIdentifier) {
+    return this.declarations.find(d => d.component.toString() === component.toString());
+  }
+
+  getDeclarationProperty(component: DDUIXNamespacedIdentifier, property: DDUIXIdentifier) {
+    return this.getDeclaration(component)?.properties.get(property);
+  }
+
   toString() {
     let str = "";
 
@@ -24,4 +38,56 @@ export class DDUIXStyleDefinition extends DDUIXDefinition {
 
     return str;
   }
+
+  //#region Inheritance
+
+  *getInheritanceIterator(
+    styleDefinitions: DDUIXIdentifierMap<DDUIXStyleDefinition>,
+    includeSelf = false,
+  ) {
+    if (includeSelf) yield this;
+
+    let baseIdentifier = this.base;
+
+    while (baseIdentifier) {
+      const definition = styleDefinitions.get(baseIdentifier);
+      if (!definition)
+        throw new DDUIXError("Non-existent style in inheritance chain", baseIdentifier.source);
+
+      yield definition;
+      baseIdentifier = definition.base;
+    }
+  }
+
+  getDeclarationIdentifiers(styleDefinitions: DDUIXIdentifierMap<DDUIXStyleDefinition>) {
+    const identifiers = new DDUIXIdentifierSet<DDUIXNamespacedIdentifier>();
+
+    for (const definition of this.getInheritanceIterator(styleDefinitions, true)) {
+      for (const declaration of definition.declarations) {
+        identifiers.add(declaration.component);
+      }
+    }
+
+    return identifiers;
+  }
+
+  getDeclarationPropertyIdentifiers(
+    styleDefinitions: DDUIXIdentifierMap<DDUIXStyleDefinition>,
+    component: DDUIXNamespacedIdentifier,
+  ) {
+    const identifiers = new DDUIXIdentifierSet();
+
+    for (const definition of this.getInheritanceIterator(styleDefinitions, true)) {
+      const declaration = definition.getDeclaration(component);
+      if (!declaration) continue;
+
+      for (const property of declaration.properties) {
+        identifiers.add(property.identifier);
+      }
+    }
+
+    return identifiers;
+  }
+
+  //#endregion
 }
