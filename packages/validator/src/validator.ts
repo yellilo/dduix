@@ -1,8 +1,11 @@
 import {
   DDUIXAttributeDefinition,
   DDUIXAttributeValueReference,
+  DDUIXColorStyleProperty,
+  DDUIXColorStylePropertyDefinition,
   DDUIXComponentDefinition,
   DDUIXConstraint,
+  DDUIXCycleError,
   DDUIXDataStoreReference,
   DDUIXDecoratorDefinition,
   DDUIXDecoratorValueReference,
@@ -10,7 +13,9 @@ import {
   DDUIXElement,
   DDUIXElementAttribute,
   DDUIXError,
+  DDUIXIdentifierSet,
   DDUIXMissingAttributeError,
+  DDUIXMissingStylePropertyError,
   DDUIXNamespacedIdentifier,
   DDUIXPlaceholderElement,
   DDUIXPlaceholderType,
@@ -18,7 +23,14 @@ import {
   DDUIXReferenceError,
   DDUIXReservedNamespaceError,
   DDUIXRootDefinition,
+  DDUIXStyleDeclaration,
+  DDUIXStyleDefinition,
+  DDUIXStyleProperty,
+  DDUIXStylePropertyDefinition,
+  DDUIXTypeError,
   DDUIXUnknownAttributeError,
+  DDUIXUnknownStylePropertyError,
+  DDUIXUnsupportedStylingError,
   DDUIXValue,
   DDUIXValueType,
 } from "@dduix/core";
@@ -56,6 +68,10 @@ export class DDUIXInternalValidator {
     for (const definition of this.definitions.roots) {
       this.validateRootDefinition(definition);
     }
+
+    for (const definition of this.definitions.styles) {
+      this.validateStyleDefinition(definition);
+    }
   }
 
   /** Checks that `identifier` does not make use of a reserved namespace. */
@@ -76,13 +92,13 @@ export class DDUIXInternalValidator {
   }
 
   private validateComponentDefinition(definition: DDUIXComponentDefinition) {
-    return (
-      this.validateNamespacedIdentifier(definition.identifier) &&
-      definition.attributes.values.every(definition =>
-        this.validateComponentAttributeDefinition(definition),
-      ) &&
-      this.validateMarkup(definition)
+    const validIdentifier = this.validateNamespacedIdentifier(definition.identifier);
+    const validAttributes = definition.attributes.values.every(definition =>
+      this.validateComponentAttributeDefinition(definition),
     );
+    const validMarkup = this.validateMarkup(definition);
+
+    return validIdentifier && validAttributes && validMarkup;
   }
 
   private validateComponentAttributeDefinition(definition: DDUIXAttributeDefinition): boolean {
@@ -94,7 +110,7 @@ export class DDUIXInternalValidator {
   }
 
   private validateDecoratorDefinition(definition: DDUIXDecoratorDefinition): boolean {
-    const validId = this.validateNamespacedIdentifier(definition.identifier);
+    const validIdentifier = this.validateNamespacedIdentifier(definition.identifier);
     const validMarkup = this.validateMarkup(definition);
 
     const hasTargetPlaceholder = markupHasPlaceholder(
@@ -111,7 +127,7 @@ export class DDUIXInternalValidator {
       );
     }
 
-    return validId && validMarkup && hasTargetPlaceholder;
+    return validIdentifier && validMarkup && hasTargetPlaceholder;
   }
 
   private validateRootDefinition(definition: DDUIXRootDefinition): boolean {
@@ -366,6 +382,278 @@ export class DDUIXInternalValidator {
         reference.source,
       ),
     );
+  }
+
+  //#endregion
+
+  //#region Styling
+
+  private validateStyleDefinition(definition: DDUIXStyleDefinition): boolean {
+    const validIdentifier = this.validateNamespacedIdentifier(definition.identifier);
+    const validInheritance = this.validateStyleDefinitionInheritance(definition);
+    const validDeclarations = this.validateStyleDeclarations(definition);
+    const complete = definition.isAbstract || this.validateStyleDefinitionComplete(definition);
+
+    return validIdentifier && validInheritance && validDeclarations && complete;
+  }
+
+  private validateStyleDefinitionInheritance(definition: DDUIXStyleDefinition): boolean {
+    if (!definition.base) return true;
+
+    const baseDefinition = this.definitions.styles.get(definition.base);
+    if (!baseDefinition) {
+      this.raise(
+        new DDUIXError(
+          `Style definition with identifier "${definition.base}" does not exist`,
+          definition.base.source,
+        ),
+      );
+      return false;
+    }
+
+    const visited = new DDUIXIdentifierSet<DDUIXNamespacedIdentifier>();
+
+    for (const { identifier } of definition.getInheritanceIterator(this.definitions.styles, true)) {
+      if (!visited.has(identifier)) {
+        visited.add(identifier);
+        continue;
+      }
+
+      this.raise(
+        new DDUIXCycleError(
+          `Style definition inheritance chain contains an infinite cycle: ${[...visited, identifier].reverse().join(" → ")}`,
+          definition.base.source,
+        ),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  private validateStyleDeclarations(definition: DDUIXStyleDefinition): boolean {
+    let valid = true;
+
+    for (const declaration of definition.declarations) {
+      if (!this.validateStyleDeclaration(declaration)) valid = false;
+    }
+
+    return valid;
+  }
+
+  private validateStyleDeclaration(declaration: DDUIXStyleDeclaration) {
+    const componentDefinition = nativeComponentDefinitions.get(declaration.component);
+    if (!componentDefinition) {
+      this.raise(
+        new DDUIXUnsupportedStylingError(
+          "Styling is only supported for select native components",
+          declaration.component.source,
+        ),
+      );
+      return false;
+    }
+
+    const propertyDefinitions = componentDefinition.styleProperties;
+    if (propertyDefinitions.size === 0) {
+      this.raise(
+        new DDUIXUnsupportedStylingError(
+          `Styling is not supported for the ${declaration.component} component`,
+          declaration.component.source,
+        ),
+      );
+      return false;
+    }
+
+    let propertiesValid = true;
+
+    for (const property of declaration.properties) {
+      const propertyDefinition = propertyDefinitions.get(property.identifier);
+      if (!propertyDefinition) {
+        this.raise(
+          new DDUIXUnknownStylePropertyError(
+            `Style property "${property.identifier}" does not exist for component "${declaration.component}"`,
+            property.identifier.source,
+          ),
+        );
+        propertiesValid = false;
+        continue;
+      }
+
+      if (!this.validateStyleProperty(propertyDefinition, property)) {
+        propertiesValid = false;
+      }
+    }
+
+    return propertiesValid;
+  }
+
+  private validateStyleProperty(
+    definition: DDUIXStylePropertyDefinition,
+    property: DDUIXStyleProperty,
+  ) {
+    if (property instanceof DDUIXColorStyleProperty) {
+      return this.validateColorStyleProperty(definition, property);
+    }
+
+    let valid = true;
+
+    const parameterCount = property.parameters.length;
+    const overload = definition.getOverload(parameterCount);
+    if (!overload) {
+      this.raise(
+        new DDUIXTypeError(
+          `No overload of style property "${property.identifier}" expects ${parameterCount} parameters`,
+          property.identifier.source,
+        ),
+      );
+      valid = false;
+    }
+
+    for (const parameter of property.parameters) {
+      try {
+        parameter.satisfies(definition.constraint, true);
+      } catch (e) {
+        if (e instanceof DDUIXError) {
+          this.raise(e);
+          valid = false;
+        }
+      }
+    }
+
+    return valid;
+  }
+
+  private validateColorStyleProperty(
+    propertyDefinition: DDUIXStylePropertyDefinition,
+    property: DDUIXColorStyleProperty,
+  ) {
+    if (propertyDefinition instanceof DDUIXColorStylePropertyDefinition) {
+      if (!propertyDefinition.hasAlpha && property.color.alpha !== undefined) {
+        this.raise(
+          new DDUIXTypeError(
+            `Style property "${property.identifier}" does not accept colors with an alpha channel`,
+            property.color.source,
+          ),
+        );
+        return false;
+      }
+
+      return true;
+    }
+
+    this.raise(
+      new DDUIXTypeError(
+        `Style property "${property.identifier}" does not accept color values`,
+        property.color.source,
+      ),
+    );
+    return false;
+  }
+
+  private validateStyleDefinitionComplete(definition: DDUIXStyleDefinition): boolean {
+    let complete = true;
+
+    const flattenedDeclarationIdentifiers = definition.getDeclarationIdentifiers(
+      this.definitions.styles,
+    );
+    for (const declarationIdentifier of flattenedDeclarationIdentifiers) {
+      const propertyDefinitions =
+        nativeComponentDefinitions.get(declarationIdentifier)?.styleProperties;
+      if (!propertyDefinitions) continue;
+
+      const flattenedPropertyIdentifiers = definition.getDeclarationPropertyIdentifiers(
+        this.definitions.styles,
+        declarationIdentifier,
+      );
+
+      for (const propertyDefinition of propertyDefinitions) {
+        const hasProperty = flattenedPropertyIdentifiers.has(propertyDefinition.identifier);
+
+        if (hasProperty) {
+          const flattenedParameterNames = this.getFlattenedStylePropertyParameterNames(
+            definition,
+            declarationIdentifier,
+            propertyDefinition,
+          );
+
+          for (const name of propertyDefinition.parameters) {
+            if (flattenedParameterNames.has(name)) continue;
+
+            this.raise(
+              new DDUIXMissingStylePropertyError(
+                `Style declaration for "${declarationIdentifier}" is missing parameter "${name}" for property "${propertyDefinition.identifier}"`,
+                definition.identifier.source,
+              ),
+            );
+            complete = false;
+          }
+        } else if (!propertyDefinition.isOptional) {
+          this.raise(
+            new DDUIXMissingStylePropertyError(
+              `Style declaration for "${declarationIdentifier}" is missing required property "${propertyDefinition.identifier}"`,
+              definition.identifier.source,
+            ),
+          );
+          complete = false;
+        }
+      }
+    }
+
+    return complete;
+  }
+
+  private getFlattenedStylePropertyParameterNames(
+    styleDefinition: DDUIXStyleDefinition,
+    componentIdentifier: DDUIXNamespacedIdentifier,
+    propertyDefinition: DDUIXStylePropertyDefinition,
+  ): Set<string> {
+    const baseIdentifier = styleDefinition.base;
+    const propertyIdentifier = propertyDefinition.identifier;
+
+    const parameterNames = new Set<string>();
+
+    if (baseIdentifier) {
+      const baseDefinition = this.definitions.styles.get(baseIdentifier);
+
+      if (baseDefinition) {
+        const inheritedParameterNames = this.getFlattenedStylePropertyParameterNames(
+          baseDefinition,
+          componentIdentifier,
+          propertyDefinition,
+        );
+
+        for (const name of inheritedParameterNames) {
+          parameterNames.add(name);
+        }
+      }
+    }
+
+    const property = styleDefinition.getDeclarationProperty(
+      componentIdentifier,
+      propertyIdentifier,
+    );
+
+    if (!property) return parameterNames;
+
+    const parameterCount = property.parameters.length;
+    const overload = propertyDefinition.getOverload(parameterCount);
+    if (!overload) return parameterNames;
+
+    for (let i = 0; i < parameterCount; i++) {
+      const name = overload.parameters[i];
+
+      const aliased = propertyDefinition.getAlias(name);
+
+      if (aliased) {
+        for (const name of aliased) {
+          parameterNames.add(name);
+        }
+      } else {
+        parameterNames.add(name);
+      }
+    }
+
+    return parameterNames;
   }
 
   //#endregion

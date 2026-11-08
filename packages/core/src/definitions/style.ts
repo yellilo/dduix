@@ -8,7 +8,6 @@ import type { DDUIXStyleDeclaration } from "../styling";
 import type { DDUIXSource } from "../source";
 
 import { DDUIXDefinition } from "./base";
-import { DDUIXError } from "../errors";
 
 export class DDUIXStyleDefinition extends DDUIXDefinition {
   constructor(
@@ -51,8 +50,7 @@ export class DDUIXStyleDefinition extends DDUIXDefinition {
 
     while (baseIdentifier) {
       const definition = styleDefinitions.get(baseIdentifier);
-      if (!definition)
-        throw new DDUIXError("Non-existent style in inheritance chain", baseIdentifier.source);
+      if (!definition) break;
 
       yield definition;
       baseIdentifier = definition.base;
