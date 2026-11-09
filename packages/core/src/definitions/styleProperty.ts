@@ -8,7 +8,6 @@ import { DDUIXDefinition } from "./base";
 import { DDUIXValueType } from "../enums";
 
 export class DDUIXStylePropertyDefinition extends DDUIXDefinition {
-  acceptsUniform = false;
   overloads: DDUIXStylePropertyOverload[] = [];
 
   #aliases = new Map<string, string[]>();
@@ -41,6 +40,11 @@ export class DDUIXStylePropertyDefinition extends DDUIXDefinition {
     return this.overloads.find(o => o.parameters.length === parameterCount);
   }
 
+  addWildcard() {
+    this.addAlias(DDUIXPunctuation.Wildcard, this.parameters);
+    this.addOverload(DDUIXPunctuation.Wildcard);
+  }
+
   toString() {
     let str = `(style property) ${this.identifier} ${this.constraint} ${DDUIXPunctuation.Assignment} `;
 
@@ -48,12 +52,9 @@ export class DDUIXStylePropertyDefinition extends DDUIXDefinition {
 
     const isColorProperty = this instanceof DDUIXColorStylePropertyDefinition;
     if (isColorProperty) overloadCount++;
-    if (this.acceptsUniform) overloadCount++;
 
     if (isColorProperty) {
       str += `#<hex>`;
-    } else if (this.acceptsUniform) {
-      str += `<*>`;
     } else {
       str += this.overloads[0];
     }

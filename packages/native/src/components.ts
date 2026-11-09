@@ -8,7 +8,7 @@ import {
 } from "@dduix/core";
 import { DDUIXNativeAttributeDefinition, DDUIXNativeComponentDefinition } from "./definitions";
 import { nativeNamespace } from "./namespace";
-import { defineColorProperty, defineEnabledProperty } from "./styleProperties";
+import { defineColorStyleProperty, defineBooleanStyleProperty } from "./styleProperties";
 
 export const nativeComponentDefinitions = new DDUIXIdentifierMap<DDUIXNativeComponentDefinition>();
 
@@ -33,7 +33,7 @@ defineNativeComponent(
   false,
   // Attributes
   [["text", false, DDUIXValueType.String]],
-  [defineColorProperty("color"), defineEnabledProperty("shadow")],
+  [defineColorStyleProperty("color"), defineBooleanStyleProperty("shadow", "enabled")],
 );
 
 defineNativeComponent(

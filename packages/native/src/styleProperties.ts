@@ -12,7 +12,7 @@ const booleanConstraint = new DDUIXConstraint(DDUIXValueType.Boolean, DDUIXSourc
 const floatConstraint = new DDUIXConstraint(DDUIXValueType.Float, DDUIXSource.Internal);
 const stringConstraint = new DDUIXConstraint(DDUIXValueType.String, DDUIXSource.Internal);
 
-export function defineColorProperty(identifier: string, isOptional = true, hasAlpha = true) {
+export function defineColorStyleProperty(identifier: string, isOptional = true, hasAlpha = true) {
   const definition = new DDUIXColorStylePropertyDefinition(
     new DDUIXIdentifier(identifier, DDUIXSource.Internal),
     isOptional,
@@ -30,7 +30,7 @@ function paddingToJSON({ top, right, bottom, left }: Record<string, DDUIXValue>)
   }
 }
 
-export function definePaddingProperty(identifier: string, isOptional = true) {
+export function definePaddingStyleProperty(identifier: string, isOptional = true) {
   const definition = new DDUIXStylePropertyDefinition(
     new DDUIXIdentifier(identifier, DDUIXSource.Internal),
     floatConstraint,
@@ -39,7 +39,7 @@ export function definePaddingProperty(identifier: string, isOptional = true) {
     paddingToJSON,
   );
 
-  definition.acceptsUniform = true;
+  definition.addWildcard();
 
   definition.addAlias("x", ["right", "left"]);
   definition.addAlias("y", ["top", "bottom"]);
@@ -48,7 +48,7 @@ export function definePaddingProperty(identifier: string, isOptional = true) {
   return definition;
 }
 
-export function defineImagePathProperty(identifier: string, isOptional = true) {
+export function defineImagePathStyleProperty(identifier: string, isOptional = true) {
   const definition = new DDUIXStylePropertyDefinition(
     new DDUIXIdentifier(identifier, DDUIXSource.Internal),
     stringConstraint,
@@ -60,13 +60,17 @@ export function defineImagePathProperty(identifier: string, isOptional = true) {
   return definition;
 }
 
-export function defineEnabledProperty(identifier: string, isOptional = true) {
+export function defineBooleanStyleProperty(
+  identifier: string,
+  parameterName: string,
+  isOptional = true,
+) {
   const def = new DDUIXStylePropertyDefinition(
     new DDUIXIdentifier(identifier, DDUIXSource.Internal),
     booleanConstraint,
-    ["enabled"],
+    [parameterName],
     isOptional,
-    ({ enabled }) => enabled,
+    parameters => parameters[parameterName],
   );
 
   return def;

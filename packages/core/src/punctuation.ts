@@ -1,4 +1,5 @@
 export enum DDUIXPunctuation {
+  Asterisk = "*",
   At = "@",
   Bar = "|",
   Colon = ":",
@@ -19,6 +20,7 @@ export enum DDUIXPunctuation {
   Nullable = Question,
   RangeSeparator = Dot + Dot,
   StylePropertyDelimeter = Semicolon,
+  Wildcard = Asterisk,
 
   // Slashes
   Slash = "/",
